@@ -1,0 +1,10 @@
+# Dataset
+dataset
+
+# Cache Files
+.vscode
+__pychache__
+
+# Miscellaneous
+template.py
+experimentation.py
