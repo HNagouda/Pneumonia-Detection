@@ -30,7 +30,7 @@ import albumentations as alb
 from skimage.transform import resize
 from sklearn.model_selection import train_test_split
 
-# ======== Transfer Learnin ======
+# ======== Transfer Learning ======
 from efficientnet.tfkeras import *
 from tensorflow.keras.applications import ResNet50, Xception
 
@@ -68,7 +68,7 @@ print(f"\n{'-' * 60} \n>>> ALL LIBRARIES SUCCESSFULLY IMPORTED \n{'-' * 60} \n")
 # ========================================== SETTING UP BASE PATHs ==========================================
 # -----------------------------------------------------------------------------------------------------------
 
-base_path = "C:/Users/harsh/Desktop/Python/Projects/Pneumonia-Detection/"
+base_path = "C:/Users/harsh/Desktop/Python/Projects/222 - Pneumonia-Detection/"
 
 train_dir = os.path.join(base_path, "dataset/train/")
 test_dir = os.path.join(base_path, "dataset/test/")
@@ -217,15 +217,15 @@ def call_and_define_generators(use_augmentations, batch_size, target_size):
     train_datagen = train_datagen.flow_from_directory(
         train_path,
         target_size,
-        batch_size,
+        batch_size = batch_size,
         color_mode = "grayscale",
-        class_mode = "binary"  
+        class_mode = "binary"
     )
     
     test_datagen = test_datagen.flow_from_directory(
         test_path,
         target_size,
-        batch_size,
+        batch_size = batch_size,
         color_mode = "grayscale",
         class_mode = "binary"   
     )
@@ -233,7 +233,7 @@ def call_and_define_generators(use_augmentations, batch_size, target_size):
     val_datagen = val_datagen.flow_from_directory(
         val_path,
         target_size,
-        batch_size,
+        batch_size = batch_size,
         color_mode = "grayscale",
         class_mode = "binary"
     )
@@ -301,41 +301,71 @@ def get_mixed_precision_opt(optimizer):
 
 
 # -----------------------------------------------------------------------------------------------------------
+# ============================================ TRANSFER LEARNING ============================================
+# -----------------------------------------------------------------------------------------------------------
+
+# ================================= LOADING ALL MODELS =================================
+# =================  EfficientNet(s) B0-B7 ================= 
+
+def call_transfer_models(input_shape):
+
+    transfer_models_list = []
+
+    input_tensor = Input(shape=input_shape)
+
+    efn0 = EfficientNetB0(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn1 = EfficientNetB1(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn2 = EfficientNetB2(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn3 = EfficientNetB3(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn4 = EfficientNetB4(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn5 = EfficientNetB5(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn6 = EfficientNetB6(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+    efn7 = EfficientNetB7(input_shape=input_shape, weights='imagenet', 
+                          include_top=False, input_tensor=input_tensor)
+
+    # ======================== Xception ========================
+    xception = Xception(input_shape=input_shape, weights='imagenet', 
+                        include_top=False, input_tensor=input_tensor)
+
+    # ======================== ResNet50 ========================
+    resnet50 = ResNet50(input_shape=input_shape, weights='imagenet', 
+                        include_top=False, input_tensor=input_tensor)
+
+    transfer_models_list = [efn0, efn1, efn2, efn3, efn4, efn5, efn6, efn7, xception, resnet50]
+
+    return transfer_models_list
+
+# ================================ ADDING INPUT LAYERS =================================
+
+def add_output_layers(transfer_models_list):
+    for i, model_name in enumerate(transfer_models_list):
+        x = model_name.output
+        x = GlobalAveragePooling2D()(x)
+        x = Dense(250, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        x = Dense(100, activation='relu')(x)
+        predictions = Dense(1, activation='sigmoid')(x)
+
+        model = Model(inputs=model_name.input, outputs=predictions)
+        transfer_models_list[i] = model
+
+    return transfer_models_list
+
+
+# -----------------------------------------------------------------------------------------------------------
 # ======================================= IMAGE CLASSIFICATION MODELS =======================================
 # -----------------------------------------------------------------------------------------------------------
 
 
-def yeetModel(inputShape):
-    
-    inputs = Input(shape=inputShape)
-
-    blockA = Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(inputs)
-    blockA = MaxPooling2D((2, 2))(blockA)
-
-    blockB = Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(blockA)
-    blockB = MaxPooling2D((2, 2))(blockB)
-
-    parallelA = concatenate([blockA, blockB], axis=1)(blockB)
-
-    transition = Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(parallelA)
-    transition = MaxPooling2D((2, 2))(transition)
-
-    blockC = Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(transition)
-    blockC = MaxPooling2D((2, 2))(blockC)
-
-    blockD = Conv2D(256, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(blockC)
-    blockD = MaxPooling2D((2, 2))(blockD)
-
-    parallelB = concatenate([blockC, blockD], axis=1)
-    
-    flatten = Flatten()(parallelB)
-
-    output = Dense(512, activation='relu')(flatten)
-    output = Dense(2, activation='softmax')(output)
-
-    model = Model(inputShape, output)
-    
-    return model
+# def yeetModel(inputShape):
+#     return RIPyeetedmodel
 
 
 # =================================== MODEL COMPILING ===================================
@@ -452,7 +482,7 @@ def print_scores(evaluated_scores):
 # ================================= PATHS, PARAMETERS, AND MODEL TUNING =====================================
 # -----------------------------------------------------------------------------------------------------------
 # RUNTIME NAME ***
-runtime_name = "Initial Attempt"  # MUST change this every time the code is run
+runtime_name = "EfficientNet B0 - Trial 1"  # MUST change this every time the code is run
 
 # Model Hyperparameters
 EPOCHS = 10
@@ -466,7 +496,6 @@ target_size = (256, 256)
 
 steps_per_epoch = 2
 validation_steps = 2
-
 
 # Data-Generator Parameters
 use_augmentations = True
@@ -517,11 +546,18 @@ train_generator, test_generator, val_generator = call_and_define_generators(
                                     use_augmentations, batch_size, target_size
                                 )
 
+
+# ======================== PREPARING MODELS =======================
+print(f"\n{'-' * 50} \nPREPARING MODELS... \n {'-' * 50}")
+transfer_models_list = call_transfer_models(input_shape)
+efn0, efn1, efn2, efn3, efn4, efn5, efn6, efn7, xception, resnet50 = add_output_layers(transfer_models_list)
+print(f"\n{'-' * 50} \nALL MODELS SUCCESSFULLY PREPARED \n {'-' * 50}")
+
 # ================== COMPILING & RUNNING THE MODEL ================
 
 print(f"\n{'-' * 50} \nCOMPILING MODEL... \n {'-' * 50}")
-Model = compile_model(yeetModel(input_shape), enable_mixed_precision)
-print(f"\n{'-' * 50} \nU-NET SUCCESSFULLY COMPILED \n {'-' * 50}")
+Model = compile_model(efn0, enable_mixed_precision)
+print(f"\n{'-' * 50} \nMODEL SUCCESSFULLY COMPILED \n {'-' * 50}")
 
 print(f"\n{'-' * 50} \nBEGINNING MODEL TRAINING... \n {'-' * 50}")
 Model_history = train_model(Model, EPOCHS, use_callbacks)
@@ -545,7 +581,3 @@ print(f"{'-' * 50} \nMODEL SUCCESSFULLY EVALUATED ")
 print(f"Model loss: {model_scores[0]}")
 print(f"Model IOU: {model_scores[1]}")
 print(f"Model Dice Coefficient: {model_scores[2]} \n{'-' * 50}")
-
-
-
-
